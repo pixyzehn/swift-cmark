@@ -363,7 +363,7 @@ static bufsize_t scan_to_closing_backticks(subject *subj,
 // Destructively modify string, converting newlines to
 // spaces, then removing a single leading + trailing space,
 // unless the code span consists entirely of space characters.
-static void S_normalize_code(cmark_strbuf *s) {
+static void S_normalize_code(cmark_strbuf *s, int options) {
   bufsize_t r, w;
   bool contains_nonspace = false;
 
@@ -376,6 +376,13 @@ static void S_normalize_code(cmark_strbuf *s) {
       break;
     case '\n':
       s->ptr[w++] = ' ';
+      if (options & CMARK_OPT_IGNORE_BLOCKQUOTES) {
+        bufsize_t next = r + 1;
+        while (next < s->size && (s->ptr[next] == ' ' || s->ptr[next] == '\t'))
+          ++next;
+        if (next < s->size && s->ptr[next] == '>')
+          r = next - 1;
+      }
       break;
     default:
       s->ptr[w++] = s->ptr[r];
@@ -413,7 +420,7 @@ static cmark_node *handle_backticks(subject *subj, int options) {
 
     cmark_strbuf_set(&buf, subj->input.data + startpos,
                      endpos - startpos - openticks.len);
-    S_normalize_code(&buf);
+    S_normalize_code(&buf, options);
 
     cmark_node *node = make_code(subj, startpos, endpos - openticks.len - 1, cmark_chunk_buf_detach(&buf));
     node->backtick_count = openticks.len;

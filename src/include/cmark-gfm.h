@@ -811,6 +811,13 @@ char *cmark_render_latex_with_mem(cmark_node *root, int options, int width, cmar
  */
 #define CMARK_OPT_TABLE_ROWSPAN_DITTO (1 << 21)
 
+/** Syntax preservation controls. These bits do not overlap upstream 0.6.0 options. */
+#define CMARK_OPT_IGNORE_REFLINKS (1 << 22)
+#define CMARK_OPT_IGNORE_HEADINGS (1 << 23)
+#define CMARK_OPT_IGNORE_LISTS (1 << 24)
+#define CMARK_OPT_IGNORE_BLOCKQUOTES (1 << 25)
+
+
 /**
  * ## Version information
  */
