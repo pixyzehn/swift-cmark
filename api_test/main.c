@@ -1572,6 +1572,24 @@ static void table_spans(test_batch_runner *runner) {
   }
 }
 
+static void syntax_preservation_controls(test_batch_runner *runner) {
+  struct { const char *source; int flags; const char *html; } cases[] = {
+    {"# heading", CMARK_OPT_IGNORE_HEADINGS, "<p># heading</p>\n"},
+    {"Title\n==\nNext", CMARK_OPT_IGNORE_HEADINGS, "<p>Title\n==\nNext</p>\n"},
+    {"- item", CMARK_OPT_IGNORE_LISTS, "<p>- item</p>\n"},
+    {"> quote", CMARK_OPT_IGNORE_BLOCKQUOTES, "<p>&gt; quote</p>\n"},
+    {"[id]: /url\n\n[id]", CMARK_OPT_IGNORE_REFLINKS, "<p>[id]: /url</p>\n<p>[id]</p>\n"}
+  };
+  for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); ++i) {
+    cmark_node *document = cmark_parse_document(cases[i].source,
+        strlen(cases[i].source), cases[i].flags);
+    char *html = cmark_render_html(document, CMARK_OPT_DEFAULT, NULL);
+    STR_EQ(runner, html, cases[i].html, "syntax preservation control");
+    free(html);
+    cmark_node_free(document);
+  }
+}
+
 int main() {
   int retval;
   test_batch_runner *runner = test_batch_runner_new();
@@ -1609,6 +1627,7 @@ int main() {
   verify_custom_attributes_node_with_footnote(runner);
   parser_interrupt(runner);
   table_spans(runner);
+  syntax_preservation_controls(runner);
 
   test_print_summary(runner);
   retval = test_ok(runner) ? 0 : 1;

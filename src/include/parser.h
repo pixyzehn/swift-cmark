@@ -46,13 +46,6 @@ struct cmark_parser {
   bufsize_t last_line_length;
   /* FIXME: not sure about the difference with curline */
   cmark_strbuf linebuf;
-  /* One-line lookahead for historical setext boundary behavior. */
-  cmark_strbuf compat_line;
-  bool compat_line_pending;
-  bool compat_line_newline;
-  bool compat_has_next_line;
-  bool compat_escape_next_marker;
-  bufsize_t compat_literal_marker;
   /* Options set by the user, see the Options section in cmark.h */
   int options;
   bool last_buffer_ended_with_cr;

@@ -143,7 +143,6 @@ static void cmark_parser_reset(cmark_parser *parser) {
 
   cmark_strbuf_init(parser->mem, &parser->curline, 256);
   cmark_strbuf_init(parser->mem, &parser->linebuf, 0);
-  cmark_strbuf_init(parser->mem, &parser->compat_line, 0);
 
   cmark_node *document = make_document(parser->mem);
 
@@ -186,7 +185,6 @@ void cmark_parser_free(cmark_parser *parser) {
   cmark_parser_dispose(parser);
   cmark_strbuf_free(&parser->curline);
   cmark_strbuf_free(&parser->linebuf);
-  cmark_strbuf_free(&parser->compat_line);
   cmark_llist_free(parser->mem, parser->syntax_extensions);
   cmark_llist_free(parser->mem, parser->inline_syntax_extensions);
   mem->free(parser);
@@ -1230,8 +1228,7 @@ static void open_new_blocks(cmark_parser *parser, cmark_node **container,
       (*container)->as.html_block_type = matched;
       // note, we don't adjust parser->offset because the tag is part of the
       // text
-    } else if ((!(parser->options & CMARK_OPT_IGNORE_HEADINGS) || parser->compat_has_next_line) &&
-               parser->first_nonspace != parser->compat_literal_marker &&
+    } else if (!(parser->options & CMARK_OPT_IGNORE_HEADINGS) &&
                !indented && cont_type == CMARK_NODE_PARAGRAPH &&
                (lev =
                     scan_setext_heading_line(input, parser->first_nonspace))) {
@@ -1243,8 +1240,6 @@ static void open_new_blocks(cmark_parser *parser, cmark_node **container,
         (*container)->type = (uint16_t)CMARK_NODE_HEADING;
         (*container)->as.heading.level = lev;
         (*container)->as.heading.setext = true;
-        if (parser->options & CMARK_OPT_IGNORE_HEADINGS)
-          parser->compat_escape_next_marker = true;
         S_advance_offset(parser, input, input->len - 1 - parser->offset, false);
       }
     } else if (!indented &&
@@ -1272,8 +1267,7 @@ static void open_new_blocks(cmark_parser *parser, cmark_node **container,
       (*container)->as.literal = c;
 
       (*container)->internal_offset = matched;
-    } else if (parser->first_nonspace != parser->compat_literal_marker &&
-               !(parser->options & CMARK_OPT_IGNORE_LISTS) &&
+    } else if (!(parser->options & CMARK_OPT_IGNORE_LISTS) &&
                (!indented || cont_type == CMARK_NODE_LIST) &&
 	       parser->indent < 4 &&
                depth < MAX_LIST_DEPTH &&
@@ -1495,7 +1489,7 @@ static void add_text_to_container(cmark_parser *parser, cmark_node *container,
 }
 
 /* See http://spec.commonmark.org/0.24/#phase-1-block-structure */
-static void S_process_line_now(cmark_parser *parser, const unsigned char *buffer,
+static void S_process_line(cmark_parser *parser, const unsigned char *buffer,
                            bufsize_t bytes, bool ensureEndsInNewline) {
   cmark_node *last_matched_container;
   bool all_matched = true;
@@ -1509,19 +1503,6 @@ static void S_process_line_now(cmark_parser *parser, const unsigned char *buffer
     cmark_utf8proc_check(&parser->curline, buffer, bytes);
   else
     cmark_strbuf_put(&parser->curline, buffer, bytes);
-
-  /* The compatibility escape pass targets the first marker on the line after
-     a setext heading. Keep its syntax effect without inserting source bytes. */
-  parser->compat_literal_marker = -1;
-  if (parser->compat_escape_next_marker) {
-    parser->compat_escape_next_marker = false;
-    for (bufsize_t i = 0; i < parser->curline.size; ++i) {
-      if (parser->curline.ptr[i] == '-' || parser->curline.ptr[i] == '=') {
-        parser->compat_literal_marker = i;
-        break;
-      }
-    }
-  }
 
   bytes = parser->curline.size;
 
@@ -1579,24 +1560,6 @@ finished:
   cmark_strbuf_clear(&parser->curline);
 }
 
-/* Delay at most one line, so streaming and whole-document input agree. */
-static void S_process_line(cmark_parser *parser, const unsigned char *buffer,
-                           bufsize_t bytes, bool newline) {
-  if (!(parser->options & CMARK_OPT_IGNORE_HEADINGS) ||
-      (parser->options & CMARK_OPT_INLINE_ONLY)) {
-    S_process_line_now(parser, buffer, bytes, newline);
-    return;
-  }
-  if (parser->compat_line_pending) {
-    parser->compat_has_next_line = true;
-    S_process_line_now(parser, parser->compat_line.ptr,
-                       parser->compat_line.size, parser->compat_line_newline);
-  }
-  cmark_strbuf_set(&parser->compat_line, buffer, bytes);
-  parser->compat_line_newline = newline;
-  parser->compat_line_pending = true;
-}
-
 cmark_node *cmark_parser_finish(cmark_parser *parser) {
   cmark_node *res;
   cmark_llist *extensions;
@@ -1610,20 +1573,12 @@ cmark_node *cmark_parser_finish(cmark_parser *parser) {
     cmark_strbuf_clear(&parser->linebuf);
   }
 
-  if (parser->compat_line_pending) {
-    parser->compat_has_next_line = false;
-    S_process_line_now(parser, parser->compat_line.ptr,
-                       parser->compat_line.size, parser->compat_line_newline);
-    parser->compat_line_pending = false;
-  }
-
   finalize_document(parser);
 
   cmark_consolidate_text_nodes(parser->root);
 
   cmark_strbuf_free(&parser->curline);
   cmark_strbuf_free(&parser->linebuf);
-  cmark_strbuf_free(&parser->compat_line);
 
 #if CMARK_DEBUG_NODES
   if (cmark_node_check(parser->root, stderr)) {
