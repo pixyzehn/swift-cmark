@@ -363,7 +363,7 @@ static bufsize_t scan_to_closing_backticks(subject *subj,
 // Destructively modify string, converting newlines to
 // spaces, then removing a single leading + trailing space,
 // unless the code span consists entirely of space characters.
-static void S_normalize_code(cmark_strbuf *s, int options) {
+static void S_normalize_code(cmark_strbuf *s) {
   bufsize_t r, w;
   bool contains_nonspace = false;
 
@@ -376,13 +376,6 @@ static void S_normalize_code(cmark_strbuf *s, int options) {
       break;
     case '\n':
       s->ptr[w++] = ' ';
-      if (options & CMARK_OPT_IGNORE_BLOCKQUOTES) {
-        bufsize_t next = r + 1;
-        while (next < s->size && (s->ptr[next] == ' ' || s->ptr[next] == '\t'))
-          ++next;
-        if (next < s->size && s->ptr[next] == '>')
-          r = next - 1;
-      }
       break;
     default:
       s->ptr[w++] = s->ptr[r];
@@ -420,7 +413,12 @@ static cmark_node *handle_backticks(subject *subj, int options) {
 
     cmark_strbuf_set(&buf, subj->input.data + startpos,
                      endpos - startpos - openticks.len);
-    S_normalize_code(&buf, options);
+    if (options & CMARK_OPT_NORMALIZE_CODE_SPANS) {
+      cmark_strbuf_trim(&buf);
+      cmark_strbuf_normalize_whitespace(&buf);
+    } else {
+      S_normalize_code(&buf);
+    }
 
     cmark_node *node = make_code(subj, startpos, endpos - openticks.len - 1, cmark_chunk_buf_detach(&buf));
     node->backtick_count = openticks.len;
@@ -1668,7 +1666,8 @@ static int parse_inline(cmark_parser *parser, subject *subj, cmark_node *parent,
   case '^':
     // TODO: Support a name between ^ and [
     // specifically check for '^['
-    if (peek_char_n(subj, 1) == '[') {
+    if (!(options & CMARK_OPT_IGNORE_ATTRIBUTES) &&
+        peek_char_n(subj, 1) == '[') {
       advance(subj);
       advance(subj);
       new_inl = make_str(subj, subj->pos - 2, subj->pos - 1, cmark_chunk_literal("^["));

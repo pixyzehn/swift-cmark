@@ -816,6 +816,10 @@ char *cmark_render_latex_with_mem(cmark_node *root, int options, int width, cmar
 #define CMARK_OPT_IGNORE_HEADINGS (1 << 23)
 #define CMARK_OPT_IGNORE_LISTS (1 << 24)
 #define CMARK_OPT_IGNORE_BLOCKQUOTES (1 << 25)
+/** Treat attribute syntax as ordinary Markdown, including its inner formatting. */
+#define CMARK_OPT_IGNORE_ATTRIBUTES (1 << 26)
+/** Trim code spans and collapse runs of whitespace to a single space. */
+#define CMARK_OPT_NORMALIZE_CODE_SPANS (1 << 27)
 
 
 /**

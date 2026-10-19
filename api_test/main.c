@@ -1574,6 +1574,10 @@ static void table_spans(test_batch_runner *runner) {
 
 static void syntax_preservation_controls(test_batch_runner *runner) {
   struct { const char *source; int flags; const char *html; } cases[] = {
+    {"^[label](url)", CMARK_OPT_IGNORE_ATTRIBUTES, "<p>^<a href=\"url\">label</a></p>\n"},
+    {"^[id]: x: y\n\n^[id]", CMARK_OPT_IGNORE_ATTRIBUTES, "<p>^[id]: x: y</p>\n<p>^[id]</p>\n"},
+    {"`  a  b\t c  `", CMARK_OPT_NORMALIZE_CODE_SPANS, "<p><code>a b c</code></p>\n"},
+    {"`a\n   > b`", CMARK_OPT_NORMALIZE_CODE_SPANS | CMARK_OPT_IGNORE_BLOCKQUOTES, "<p><code>a &gt; b</code></p>\n"},
     {"# heading", CMARK_OPT_IGNORE_HEADINGS, "<p># heading</p>\n"},
     {"Title\n==\nNext", CMARK_OPT_IGNORE_HEADINGS, "<p>Title\n==\nNext</p>\n"},
     {"- item", CMARK_OPT_IGNORE_LISTS, "<p>- item</p>\n"},
